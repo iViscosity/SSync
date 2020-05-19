@@ -29,9 +29,7 @@ function db:onConnected()
                 unban          INTEGER NOT NULL, 
                 reason         TEXT, 
                 name           TEXT, 
-                admin          TEXT, 
-                modified_admin TEXT, 
-                modified_time  INTEGER 
+                admin          TEXT
             ); 
         ]]
 
