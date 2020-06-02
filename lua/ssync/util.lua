@@ -5,30 +5,14 @@
 ]]--
 
 local dataPath = "data/ssync/logs/"
+local logFile = os.date("data/ssync/logs/%m-%d-%y.txt")
 
---[[
-	Function: ssync.createLogFile
-
-	Creates today's log file.
-]]--
-function ssync.createLogFile()
-	local date = os.date("%x"):gsub("/", "") -- remove forward-slash from date for filename
-	local path = dataPath .. date
-	
-	if not ULib.fileExists(path) then
-		ULib.fileWrite(path, "")
-	end
+if not ULib.fileExists(logFile) then
+	ULib.fileWrite(logFile, "")
+else
+	ULib.fileWrite(logFile, "\r\n=====\r\n")
 end
-
---[[
-	Function: ssync.getLogFile
-
-	Returns today's log file.
-]]--
-function ssync.getLogFile()
-	local path = dataPath .. os.date("%x"):gsub("/", "")
-	return path
-end
+ULib.fileWrite("Map change: " .. game.GetMap())
 
 --[[
 	Function: ssync.timestamp
@@ -53,7 +37,7 @@ function ssync.log(message, ...)
 	local m = ssync.timestamp() .. message:format(...) -- faster than string.format (~33%)
 
 	ServerLog("[SSync] " .. m)
-	ULib.fileWrite(ssync.getLogFile(), m)
+	ULib.fileWrite(logFile, m)
 end
 
 --[[
