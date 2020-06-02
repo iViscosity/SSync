@@ -1,76 +1,62 @@
-SSync.BanSync = SSync.BanSync or {}
-local b = SSync.BanSync
-local db = SSync.DB
+if not ssync.settings.enabledModules.banSync then return ssync.verbose("BanSync not enabled") end
 
-if not SSync.Config.Modules.BanSync then return end
+ssync.banSync = {}
+local bsync = ssync.banSync
 
-local function _nilIfNull(p)
-	if p == "NULL" then return nil end
-	return p
-end
-
-function b.Refresh()
-	SSync.Verbose("Refreshing ban table...")
-	ULib.refreshBans()
-	local query_string = "SELECT * FROM ssync_bans;"
-
-	local query = db:query(query_string)
+function bsync.update()
+	local queryString = "SELECT * FROM ssync_bans"
+	local query = ssync.db:query(queryString)
 
 	function query:onSuccess(data)
 		while self:hasMoreResults() do
-			local row = query:getData()[1]
-			
+			local row = self:getData()[1]
+
 			local steamid = row.steamid
-			local time = row.time
-			local unban = row.unban
-			local reason = _nilIfNull(row.reason)
-			local name = _nilIfNull(row.name)
-			local admin = _nilIfNull(row.admin)
+			local time    = row.time
+			local unban   = row.unban
+			local reason  = row.reason
+			local name    = row.name
+			local admin   = row.admin
 
-			if not ULib.bans[steamid] then
-				SSync.QueueBan(steamid, unban - time, reason, name, admin)
-			end
-
-			self:getNextResults()
+			ULib.addBan(steamid, (unban - time), reason, name, admin)
+			ssync.log("%s ban synced", steamid)
 		end
 	end
+end
 
-	function query:onError(err)
-		SSync.Error("Failed updating the database! Error: %s", err)
+function bsync.adduser(banData)
+	if banData.time < ssync.settings.banSync_minimumBanTime then
+		return ssync.verbose("Ignoring %s ban: below minimum ban time (%d < %d)", steamid, banData.time, ssync.settings.banSync_minimumBanTime)
+	end
+
+
+	local queryString = "REPLACE INTO ssync_bans (steamid, time, unban, reason, name, admin) " ..
+		string.format("VALUES('%s', %d, %d, '%s', '%s', '%s')",
+		banData.steamid,
+		banData.time,
+		banData.unban,
+		banData.reason,
+		banData.name,
+		banData.admin)
+
+	local query = ssync.db:query(queryString)
+
+	function query:onError(err, sql)
+		error("[SSync] An error occured while updating remote BanSync database: " .. err)
 	end
 
 	query:start()
+
+	ssync.log("Successfully synced %s's ban.", banData.steamid)
 end
 
-function b.Update(ply)
-	local query_string
-	local query
+function bsync.removeuser(steamid)
+	local queryString = ("DELETE FROM ssync_bans WHERE steamid = '%s'"):format(steamid)
+	local query = ssync.db:query(queryString)
 
-	if ply then
-		query_string = [[
-			UPDATE ssync_bans 
-			SET    	TIME = %d, 
-       				unban = %d, 
-       			   	reason = %s, 
-       				name = %s, 
-       				ADMIN = %s 
-			WHERE	steamid = '%s' 
-		]]:format(ply:SteamID64())
-		query = db:query(query_string)
-
-		function query:onSuccess(data)
-			local data = query:getData()[1]
-
-			local steamid = row.steamid
-			local time = row.time
-			local unban = row.unban
-			local reason = _nilIfNull(row.reason)
-			local name = _nilIfNull(row.name)
-			local admin = _nilIfNull(row.admin)
-
-			if not ULib.bans[util.SteamIDTo64(steamid)] then
-				SSync.QueueBan(steamid, unban - time, reason, name, admin)
-			end
-		end
+	function query:onError(err, sql)
+		error("[SSync] An error occured while removing a ban from the remote database: " .. err)
 	end
+
+	query:start()
 end

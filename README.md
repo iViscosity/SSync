@@ -21,5 +21,3 @@ A server restart is **required**, not just a map change. Make sure you edit all 
 ## Usage
 
 SSync is completely automated, so you don't have to do anything except provide it the information to connect to your Database!
-
-## 

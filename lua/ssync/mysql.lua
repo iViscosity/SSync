@@ -1,98 +1,84 @@
-local c = SSync.Config -- because typing "SSync.Config" over and over hurts my fingees
-local enabled = c.Modules.BanSync or c.ModulesRankSync
+--[[
+	SSync MySQL
 
-if not enabled then
-    SSync.Log("No SSync Modules are enabled. Aborting...")
-    return
+	An interface using MySQLOO to send data to an external (or internal) MySQL Database.
+	Make sure your settings here are correct, or else it will fail.
+]]--
+
+--[[ SSync MySQL Settings ]]--
+
+local hostname = ""   -- url or IP for database
+local username = ""   -- login username
+local password = ""   -- login password
+local database = ""   -- database in IP
+local     port = 3306 -- port. probably 3306, only change if you're sure
+
+--[[ End Settings : Do not edit past this line ]]--
+
+if not ULib.fileExists("lua/bin/gsmv_mysqloo_*.dll") then
+	return error("[SSync] Could not find MySQLOO module. Make sure it is located in 'garrysmod/lua/bin/'.")
 end
 
-require("mysqloo")
+require "mysqloo" -- load module
 
-SSync.DB = mysqloo.connect(c.Hostname, c.Username, c.Password, c.Database, c.Port)
-local db = SSync.DB
+if tonumber(mysqloo.VERSION) < 9 then
+	ErrorNoHalt("[SSync] MySQLOO module outdated. Things will probably still work but there may be security issues.")
+end
+
+local db = mysqloo.connect(hostname, username, password, database, port)
 
 function db:onConnected()
-    SSync.Log("Connected successfully to the database!")
-    SSync.Verbose("Connection string: %s@%s:%d", Username, Hostname, Port)
+	ssync.log("Database connected successfully. Initializing tables...")
+	
+	if ssync.settings.enabledModules.banSync then
+		ssync.verbose("BanSync enabled, initializing...")
 
-    SSync.Log("Creating tables...")
-    SSync.Verbose("Checking modules enabled (BanSync, RankSync): (%s, %s)", tostring(c.Modules.BanSync), tostring(c.Modules.RankSync))
+		local queryString = "CREATE TABLE IF NOT EXISTS ssync_bans (" ..
+			"steamid TEXT NOT NULL PRIMARY KEY, " ..
+			"time INTEGER NOT NULL, " ..
+			"unban INTEGER NOT NULL, " ..
+			"reason TEXT, " ..
+			"name TEXT, " ..
+			"admin TEXT);" -- I don't include "modified_time" and "_admin" because I don't want to lol
+		
+		ssync.verbose("Query string: \"%s\"", queryString)
 
-    if c.Modules.BanSync then
-        SSync.Verbose("BanSync enabled. Creating table...")
+		local query = db:query(queryString)
 
-        local query_string = [[
-            CREATE TABLE IF NOT EXISTS ssync_bans 
-            ( 
-                steamid        INTEGER NOT NULL PRIMARY KEY, 
-                time           INTEGER NOT NULL, 
-                unban          INTEGER NOT NULL, 
-                reason         TEXT, 
-                name           TEXT, 
-                admin          TEXT
-            ); 
-        ]]
+		function query:onError(err, sql)
+			error("Could not create BanSync table: " .. err)
+		end
 
-        local query = db:query(query_string)
+		query:start()
 
-        function query:onSuccess(data)
-            SSync.Verbose("MySQL table 'ssync_bans' created successfully!")
-        end
+		ssync.verbose("BanSync table created successfully.")
+	end
 
-        function query:onError(err, q)
-            SSync.Error(2, "Failed to create 'ssync_bans'! Error: %s, Sql: %s", err, q)
-        end
+	if ssync.settings.enabledModules.rankSync then
+		ssync.verbose("RankSync enabled, initializing...")
 
-        query:start()
-    end
+		local queryString = "CREATE TABLE IF NOT EXISTS ssync_ranks (" ..
+			"steamid TEXT NOT NULL PRIMARY KEY, " ..
+			"role TEXT NOT NULL, " ..
+			"temp TEXT DEFAULT 'N');"
 
-    if c.Modules.RankSync then
-        SSync.Verbose("RankSync enabled. Creating table...")
+		ssync.verbose("Query string: \"%s\"", queryString)
 
-        local query_string = [[
-            CREATE TABLE IF NOT EXISTS ssync_ranks 
-            ( 
-                steamid INTEGER NOT NULL PRIMARY KEY, 
-                rank    TEXT NOT NULL 
-            ); 
-        ]]
+		local query = db:query(queryString)
 
-        local query = db:query(query_string)
+		function query:onError(err, sql)
+			error("Could not create RankSync table: " .. err)
+		end
 
-        function query:onSuccess(data)
-            SSync.Verbose("MySQL table 'ssync_ranks' created successfully!")
-        end
+		query:start()
 
-        function query:onError(err, q)
-            SSync.Error(2, "Failed to create 'ssync_ranks'! Error: %s, Sql: %s", err, q)
-        end
-
-        query:start()
-    end
+		ssync.verbose("RankSync table created successfully.")
+	end
 end
 
-db:connect()
-
---[[
-    Function: Refresh
-
-    Ensures our ban/rank table is updated with the database.
-]]--
-function SSync.Refresh(ply)
-    SSync.BanSync.Refresh()
-    SSync.RankSync.Refresh()
+function db:onConnectionFailed(err)
+	error("[SSync] Could not connect to the MySQL Database! Are your settings correct? (" .. err .. ")")
 end
 
---[[
-    Function: Update
-
-    Ensures our database is updated with the ban/rank table.
-
-    Parameters:
-
-        ply - The player to update. If nil, updates everyone.
-]]--
-function SSync.Update(ply)
-    SSync.BanSync.Update(ply)
-    SSync.RankSync.Update(ply)
-end
+ssync.db = db
+ssync.db:connect()

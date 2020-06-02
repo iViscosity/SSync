@@ -1,83 +1,68 @@
 --[[
-    Function: Timestamp
+	SSync Utilities
 
-    Gets the current timestamp (24-hour time)
-
-    Format:
-        
-        [HH:MM:SS]
-
-    Example:
-        
-        > local ts = SSync.TimeStamp()
-        > print(ts)
-        [03:12:07]
+	Includes functions for logging and other utility functions.
 ]]--
-function SSync.TimeStamp()
-	return "[" .. os.date("%H:%M:%S", os.time()) .. "] "
-end
+
+local dataPath = "data/ssync/logs/"
 
 --[[
-	Function: Log
+	Function: ssync.createLogFile
 
-	Takes a message and logs it to the console.
-
-	Parameters:
-
-		message - The message to print
-		... - Vararg list of parameters for pattern replacement in message.
-
-	Example:
-
-		name = ply:Nick()
-		SSync.Log("Player %s has joined!", name)
+	Creates today's log file.
 ]]--
-function SSync.Log(message, ...)
-	message = SSync.TimeStamp() .. "[SSync] [INFO]" .. string.format(message, ...)
-
-	ServerLog(message)
-end
-
---[[
-	Function: Verbose
-
-	*Should only be called internally*. Displays a verbose log. Only does anything if SSync.Config.VerboseLogging is enabled.
-
-	Parameters:
-
-		message - The message to print
-		... - Vararg list of parameters for pattern replacement in message.
-]]--
-function SSync.Verbose(message, ...)
-	if SSync.Config.VerboseLogging then
-		SSync.Log(message, ...)
-	end
-end
-
---[[
-	Function: SSync.Error(level, message)
-
-	Takes an error message and logs it to the console.
-
-	Parameters:
-
-		level - The error level. 1 = warning, 2 = fatal
-		message - The error message. Can include patterns.
-		... - Vararg list of parameters for pattern replacement in message.
-
-	Example:
-
-		SSync.Error(2, "Could not connect to bans database: %s", err)
-]]--
-function SSync.Error(level, message, ...)
-	if type(level) == "string" then
-		message = level
-		level = 1
-	end
-
-	level = math.Clamp(level, 1, 2)
+function ssync.createLogFile()
+	local date = os.date("%x"):gsub("/", "") -- remove forward-slash from date for filename
+	local path = dataPath .. date
 	
-	if level == 1 then ErrorNoHalt(SSync.TimeStamp() .. "[SSync] [WARN] " .. string.format(message, ...))
-	elseif level == 2 then error(SSync.TimeStamp() .. "[SSync] [FATAL]" .. string.format(message, ...))
+	if not ULib.fileExists(path) then
+		ULib.fileWrite(path, "")
+	end
+end
+
+--[[
+	Function: ssync.getLogFile
+
+	Returns today's log file.
+]]--
+function ssync.getLogFile()
+	local path = dataPath .. os.date("%x"):gsub("/", "")
+	return path
+end
+
+--[[
+	Function: ssync.timestamp
+
+	Creates a timestamp in the format "<DD/MM/YY> @ [HH:mm:SS]" (pattern is <%x> @ [%X]) (pattern info: https://wiki.facepunch.com/gmod/os.date)
+]]--
+function ssync.timestamp()
+	return os.date("<%x> @ [%X]")
+end
+
+--[[
+	Function: ssync.log
+
+	Logs a message to server console and writes to log file.
+
+	Parameters:
+
+		message - The message to write. Can use patterns.
+		... - Vararg list of parameters to replace into message.
+]]--
+function ssync.log(message, ...)
+	local m = ssync.timestamp() .. message:format(...) -- faster than string.format (~33%)
+
+	ServerLog("[SSync] " .. m)
+	ULib.fileWrite(ssync.getLogFile(), m)
+end
+
+--[[
+	Function: ssync.verbose
+
+	Writes a verbose log, only performed if settings.verboseLogging is enabled. 
+]]--
+function ssync.verbose(message, ...)
+	if ssync.settings.verboseLogging then
+		ssync.log(message, ...)
 	end
 end
