@@ -1,8 +1,6 @@
 local c = ssync.settings -- shorthand, don't change
 
- -- keep this false unless I ask you to enable. this will flood your server console with
- -- tons of messages to help debug, so unless you want a ton of unnecessary I/O load, keep 
- -- it off (false)
+ -- adds extra logging messages to the console. not necessary, but if you like verbose logging then go for it.
 c.verboseLogging = false
 
 --[[
